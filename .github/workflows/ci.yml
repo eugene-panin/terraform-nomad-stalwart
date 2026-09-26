@@ -65,11 +65,8 @@ jobs:
 
       - name: module tests
         run: |
-          for dir in ./ modules/*/; do
-            if [ -d "$dir/tests" ]; then
-              (cd "$dir" && "$TF_BINARY" init -backend=false -input=false >/dev/null && "$TF_BINARY" test)
-            fi
-          done
+          "$TF_BINARY" init -backend=false -input=false >/dev/null
+          "$TF_BINARY" test
 
       - name: go test
         working-directory: test

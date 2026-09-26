@@ -42,7 +42,7 @@ variable "mail" {
   type = object({
     hostname            = string
     domains             = set(string)
-    accounts            = optional(map(object({ aliases = optional(set(string), []) })), {})
+    mailboxes           = optional(list(string), ["info"])
     acme_email          = string
     acme_ca_server      = optional(string, "https://acme-v02.api.letsencrypt.org/directory")
     acme_ca_certificate = optional(string)
@@ -51,14 +51,16 @@ variable "mail" {
 }
 
 module "workload_identity" {
-  source = "../../modules/workload-identity"
+  source  = "eugene-panin/hashistack/nomad//modules/workload-identity"
+  version = "~> 0.5"
 
   nomad_jwks_url = var.nomad_jwks_url
   vault_kv_path  = var.vault_kv_path
 }
 
 module "traefik" {
-  source = "../../modules/traefik"
+  source  = "eugene-panin/hashistack/nomad//modules/traefik"
+  version = "~> 0.5"
 
   domain                = var.traefik.domain
   acme_email            = var.traefik.acme_email
@@ -74,11 +76,11 @@ module "traefik" {
 }
 
 module "mail" {
-  source = "../../modules/mail"
+  source = "../.."
 
   hostname            = var.mail.hostname
   domains             = var.mail.domains
-  accounts            = var.mail.accounts
+  mailboxes           = var.mail.mailboxes
   acme_email          = var.mail.acme_email
   acme_ca_server      = var.mail.acme_ca_server
   acme_ca_certificate = var.mail.acme_ca_certificate
@@ -90,6 +92,11 @@ output "passwords" {
   description = "Generated password of each account."
   value       = module.mail.passwords
   sensitive   = true
+}
+
+output "mailboxes" {
+  description = "Mailboxes and their aliases."
+  value       = module.mail.mailboxes
 }
 
 output "dns_records" {

@@ -1,4 +1,4 @@
-module github.com/eugene-panin/terraform-nomad-hashistack/test
+module github.com/eugene-panin/terraform-nomad-stalwart/test
 
 go 1.26.5
 

@@ -5,7 +5,7 @@ help:
 	@echo "make lint            fmt check and tflint"
 	@echo "make test            Terratest with tofu"
 	@echo "make test-terraform  Terratest with terraform"
-	@echo "make module-tests    tofu test in every module with tests (TF_BINARY=terraform for terraform)"
+	@echo "make module-tests    tofu test of the module (TF_BINARY=terraform for terraform)"
 
 fmt:
 	tofu fmt -recursive
@@ -24,8 +24,4 @@ test-terraform:
 TF_BINARY ?= tofu
 
 module-tests:
-	for dir in ./ modules/*/; do \
-	  if [ -d "$$dir/tests" ]; then \
-	    (cd "$$dir" && $(TF_BINARY) init -backend=false -input=false >/dev/null && $(TF_BINARY) test) || exit 1; \
-	  fi; \
-	done
+	$(TF_BINARY) init -backend=false -input=false >/dev/null && $(TF_BINARY) test

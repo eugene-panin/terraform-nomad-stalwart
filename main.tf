@@ -13,8 +13,17 @@ locals {
     for d in sort(tolist(var.domains)) : [for l in local.service_labels : "${l}.${d}"]
   ]))
 
+  mailbox_accounts = merge([
+    for d in var.domains : {
+      for i, m in var.mailboxes : "${m}@${d}" => {
+        aliases = toset(i == 0 ? ["postmaster@${d}", "abuse@${d}"] : [])
+      }
+    }
+  ]...)
+  all_accounts = merge(local.mailbox_accounts, var.accounts)
+
   accounts = {
-    for address, account in var.accounts : address => {
+    for address, account in local.all_accounts : address => {
       name    = split("@", address)[0]
       domain  = split("@", address)[1]
       aliases = [for a in sort(tolist(account.aliases)) : { name = split("@", a)[0], domain = split("@", a)[1] }]
@@ -138,7 +147,7 @@ resource "tls_private_key" "dkim_rsa" {
 }
 
 resource "random_password" "account" {
-  for_each = var.accounts
+  for_each = local.all_accounts
 
   length  = 32
   special = false

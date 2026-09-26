@@ -65,12 +65,8 @@ func TestMail(t *testing.T) {
 		},
 		"dns_provider_env": map[string]string{"EXEC_PATH": dnsProviderPath},
 		"mail": map[string]any{
-			"hostname": mailHost,
-			"domains":  []string{"example.test", "second.test"},
-			"accounts": map[string]any{
-				"info@example.test": map[string]any{"aliases": []string{"postmaster@example.test"}},
-				"info@second.test":  map[string]any{"aliases": []string{"postmaster@second.test"}},
-			},
+			"hostname":            mailHost,
+			"domains":             []string{"example.test", "second.test"},
 			"acme_email":          "admin@example.test",
 			"acme_ca_server":      "https://pebble-strict:14000/dir",
 			"acme_ca_certificate": string(strictCA),
@@ -87,7 +83,7 @@ func TestMail(t *testing.T) {
 	}
 
 	options := &terraform.Options{
-		TerraformDir:    "../examples/mail",
+		TerraformDir:    "../examples/complete",
 		TerraformBinary: binary(),
 		NoColor:         true,
 		VarFiles:        []string{varFile},

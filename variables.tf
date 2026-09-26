@@ -23,8 +23,19 @@ variable "domains" {
   }
 }
 
+variable "mailboxes" {
+  description = "Mailboxes every domain gets, by the part before the @; the first one of each domain also receives postmaster@ and abuse@. Passwords are generated and returned by the passwords output."
+  type        = list(string)
+  default     = ["info"]
+
+  validation {
+    condition     = alltrue([for m in var.mailboxes : can(regex("^[a-z0-9][a-z0-9._-]*$", m))])
+    error_message = "mailboxes must be lowercase local parts, such as info or sales."
+  }
+}
+
 variable "accounts" {
-  description = "Mailboxes keyed by address, each with the alias addresses it also receives. Every address must be in one of domains. Passwords are generated and returned by the passwords output."
+  description = "More mailboxes keyed by full address, each with the alias addresses it also receives, on top of mailboxes. An address that mailboxes also makes takes these aliases instead. Every address must be in one of domains."
   type = map(object({
     aliases = optional(set(string), [])
   }))
@@ -76,6 +87,12 @@ variable "traefik" {
     servers_transport = optional(string, "proxy-protocol@file")
   })
   default = {}
+}
+
+variable "dns_comment" {
+  description = "Comment on every record of the dns_records output, so the mail records stand out in the DNS provider's dashboard."
+  type        = string
+  default     = "Mail, managed by OpenTofu"
 }
 
 variable "dkim_selector" {

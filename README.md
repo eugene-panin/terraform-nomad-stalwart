@@ -1,31 +1,49 @@
-# mail
+# terraform-nomad-stalwart
 
-Runs [Stalwart](https://stalw.art/) as a Nomad job: SMTP, submission and IMAP
-for several domains, with DKIM, MTA-STS and certificates from an ACME server.
-Stalwart keeps its configuration in its own database; this module writes it
-there on every start, so the running server always matches the module inputs.
+The [Stalwart](https://stalw.art/) mail server as an app on the
+[hashistack platform](https://github.com/eugene-panin/terraform-nomad-hashistack):
+SMTP, submission and IMAP for several domains, with DKIM, MTA-STS and
+certificates from an ACME server. Every domain gets an `info@` mailbox, which
+also receives `postmaster@` and `abuse@`.
 
 ```hcl
 module "mail" {
-  source  = "eugene-panin/hashistack/nomad//modules/mail"
-  version = "~> 0.3"
+  source  = "eugene-panin/stalwart/nomad"
+  version = "~> 0.1"
 
   hostname   = "mail.example.com"
   domains    = ["example.com", "example.org"]
   acme_email = "admin@example.com"
 
-  accounts = {
-    "info@example.com" = { aliases = ["postmaster@example.com"] }
-    "info@example.org" = { aliases = ["postmaster@example.org"] }
-  }
+  vault_kv_path = module.stack.vault_kv_path
+}
 
-  vault_kv_path = module.workload_identity.vault_kv_path
+module "dns" {
+  source  = "eugene-panin/hashistack/nomad//modules/dns-cloudflare"
+  version = "~> 0.6"
+
+  records = [module.stack.dns_records, module.mail.dns_records]
 }
 ```
 
-It needs the `traefik` module, or a Traefik with a TCP servers transport
-named `proxy-protocol` that sends PROXY protocol version 2, and the
-`workload-identity` module for Vault.
+The mailbox passwords are in the `passwords` output. `mailboxes` names the
+mailboxes every domain gets, `["info"]` by default. `accounts` adds single
+addresses with aliases of their own.
+
+The platform is the root module of `eugene-panin/hashistack/nomad`, or at
+least its `traefik` and `workload-identity` modules. Stalwart needs from it:
+
+- a Traefik with a TCP servers transport named `proxy-protocol` that sends
+  PROXY protocol version 2;
+- the Vault KV engine of workload identity;
+- a Nomad host network named `public` for the mail ports, opened in the
+  firewall: 25, 465, 587 and 993.
+
+Another mail server is another module. It takes the same place and needs the
+same ports.
+
+Stalwart keeps its configuration in its own database. This module writes it
+there on every start, so the running server always matches the module inputs.
 
 ## What it creates
 
@@ -48,20 +66,28 @@ network: Traefik passes TLS through by SNI for `hostname` and for
 protocol header. Stalwart obtains the certificates itself through TLS-ALPN-01
 on those names, so no DNS API is needed, and serves the MTA-STS policy.
 
-Accounts are declared, not created by hand: the plan resets their passwords
-and aliases on every start. Read the passwords from the `passwords` output.
+Mailboxes are declared, not created by hand: the plan resets their passwords
+and aliases on every start.
 
 ## DNS
 
 The `dns_records` output lists what each domain needs: MX, SPF
 (`v=spf1 mx -all`), both DKIM keys, DMARC with `dmarc_policy`, the MTA-STS
 and TLS-RPT records, and CNAMEs from the service names to `hostname`. Publish
-them with the DNS provider of each zone. The A record of `hostname` and its
-reverse DNS are yours to set.
+them with the `dns-cloudflare` module of the platform, or with the DNS
+provider of each zone. Every record carries `dns_comment`. The A record of
+`hostname` and its reverse DNS are yours to set.
 
 ## Tested
 
-The test runs Consul, Vault, Nomad, Traefik and two Pebble ACME servers in
+`tofu test` with mocked providers checks that every domain gets every
+mailbox, that only the first one receives `postmaster@` and `abuse@`, that
+`accounts` add mailboxes and replace the aliases of one with the same address,
+that every mailbox has a password, that the records keep their MX priority and
+carry the comment, and that a bad mailbox name is refused. Each check fails
+when its part of the module is changed.
+
+The Terratest run starts Consul, Vault, Nomad, Traefik and two Pebble ACME servers in
 Docker. One of them validates for real: its DNS answers every name with the
 Nomad container, and it checks TLS-ALPN-01 through Traefik. Against two
 domains:
@@ -108,17 +134,19 @@ store on the volume, a correct checksum, and the MTA-STS settings.
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
-| accounts | Mailboxes keyed by address, each with the alias addresses it also receives. Every address must be in one of domains. Passwords are generated and returned by the passwords output. | <pre>map(object({<br/>    aliases = optional(set(string), [])<br/>  }))</pre> | `{}` | no |
+| accounts | More mailboxes keyed by full address, each with the alias addresses it also receives, on top of mailboxes. An address that mailboxes also makes takes these aliases instead. Every address must be in one of domains. | <pre>map(object({<br/>    aliases = optional(set(string), [])<br/>  }))</pre> | `{}` | no |
 | acme\_ca\_certificate | PEM CA the ACME server's own TLS certificate is signed by, for a private ACME server. Null trusts the system store. | `string` | `null` | no |
 | acme\_ca\_server | ACME directory URL. | `string` | `"https://acme-v02.api.letsencrypt.org/directory"` | no |
 | acme\_email | Contact address for the ACME account. | `string` | n/a | yes |
 | datacenters | Datacenters the job may run in. | `list(string)` | <pre>[<br/>  "*"<br/>]</pre> | no |
 | dkim\_selector | Prefix of the DKIM selectors; each domain signs with <prefix>-ed25519 and <prefix>-rsa. Change it to rotate the keys. | `string` | `"s1"` | no |
 | dmarc\_policy | DMARC policy published for every domain. | `string` | `"none"` | no |
+| dns\_comment | Comment on every record of the dns\_records output, so the mail records stand out in the DNS provider's dashboard. | `string` | `"Mail, managed by OpenTofu"` | no |
 | domains | Mail domains the server accepts mail for and signs mail from. | `set(string)` | n/a | yes |
 | hostname | Host name of the mail server: the MX of every domain, the name in the SMTP greeting and the one clients connect to. It must be inside one of domains. | `string` | n/a | yes |
 | internal\_host\_network | Nomad host network of the HTTPS listener Traefik passes TLS through to. | `string` | `"default"` | no |
 | job\_name | Name of the Nomad job and its Consul service; also the second segment of its secret path in Vault. | `string` | `"mail"` | no |
+| mailboxes | Mailboxes every domain gets, by the part before the @; the first one of each domain also receives postmaster@ and abuse@. Passwords are generated and returned by the passwords output. | `list(string)` | <pre>[<br/>  "info"<br/>]</pre> | no |
 | mta\_sts\_mode | MTA-STS mode served for every domain. | `string` | `"testing"` | no |
 | namespace | Nomad namespace of the job; also the first segment of its secret path in Vault. | `string` | `"default"` | no |
 | public\_host\_network | Nomad host network the SMTP, submission and IMAP ports bind to, on their standard numbers. | `string` | `"public"` | no |
@@ -131,7 +159,8 @@ store on the volume, a correct checksum, and the MTA-STS settings.
 | Name | Description |
 | ---- | ----------- |
 | data\_volume | Name of the dynamic host volume holding the mail store. |
-| dns\_records | DNS records each domain needs, keyed by domain: MX, SPF, two DKIM keys, DMARC, MTA-STS, TLS-RPT, and the service names that point at hostname. The A record of hostname itself is not included. |
+| dns\_records | DNS records each domain needs, keyed by domain, in the shape the dns-cloudflare module of eugene-panin/hashistack/nomad takes: MX, SPF, two DKIM keys, DMARC, MTA-STS, TLS-RPT, and the service names that point at hostname. The A record of hostname itself is not included. |
 | job\_id | ID of the mail job in Nomad. |
+| mailboxes | Mailboxes keyed by address, with the aliases each one also receives. |
 | passwords | Generated password of each account, keyed by address. |
 <!-- END_TF_DOCS -->
