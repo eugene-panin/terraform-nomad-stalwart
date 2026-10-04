@@ -5,6 +5,14 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-04
+
+### Added
+
+- The meta `backup = "stop"` on the job: a backup of the platform stops it
+  while it copies the volume, since a running RocksDB store cannot be copied
+  consistently. Changing the meta restarts the job once.
+
 ## [0.1.0] - 2026-09-27
 
 ### Added

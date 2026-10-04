@@ -96,3 +96,12 @@ run "bad_mailbox_names_are_refused" {
 
   expect_failures = [var.mailboxes]
 }
+
+run "the_job_asks_to_be_stopped_for_a_backup" {
+  command = apply
+
+  assert {
+    condition     = strcontains(nomad_job.mail.jobspec, "backup         = \"stop\"")
+    error_message = "The job does not carry the meta backup = \"stop\"."
+  }
+}

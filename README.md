@@ -52,7 +52,9 @@ there on every start, so the running server always matches the module inputs.
 - A Vault secret with the Stalwart configuration plan and the password of a
   recovery administrator, written as a write-only value.
 - A dynamic host volume, owned by `nobody`, for the mail store, the ACME
-  account and the certificates.
+  account and the certificates. The job carries the meta `backup = "stop"`:
+  RocksDB cannot be copied while Stalwart runs, so a backup of the platform
+  stops the job, copies the volume and starts it again.
 - The job. A prestart task checks the Stalwart release against the SHA-256 in
   `stalwart`, starts it in recovery mode on a dynamic port, applies the
   plan with `stalwart-cli apply`, and stops it. Then Stalwart runs with the
