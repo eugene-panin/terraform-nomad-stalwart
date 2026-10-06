@@ -96,7 +96,9 @@ carry the comment, and that a bad mailbox name is refused. Each check fails
 when its part of the module is changed.
 
 The Terratest run starts Consul, Vault, Nomad, Traefik and two Pebble ACME servers in
-Docker. One of them validates for real: its DNS answers every name with the
+Docker. Nomad runs in a container of its own with a Docker daemon, the CNI
+plugins and a DNS forwarder, so the job gets the `docker` driver and its
+`bridge` network as on a server. One Pebble validates for real: its DNS answers every name with the
 Nomad container, and it checks TLS-ALPN-01 through Traefik. Against two
 domains:
 

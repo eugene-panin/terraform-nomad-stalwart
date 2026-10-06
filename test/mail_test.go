@@ -38,7 +38,6 @@ type dnsRecord struct {
 }
 
 func TestMail(t *testing.T) {
-	t.Skip("the stack of this test runs Nomad in a container with the exec driver; the job needs the docker driver and a bridge network now")
 	startStack(t)
 
 	minica, err := os.ReadFile(pebbleCA)
@@ -63,6 +62,7 @@ func TestMail(t *testing.T) {
 			"internal":              map[string]any{"port": 443},
 			"public":                map[string]any{"http_port": 80, "https_port": 9443},
 			"consul":                map[string]any{"address": "consul:8500", "scheme": "http"},
+			"image":                 "mirror.gcr.io/library/traefik:v3.7.13@sha256:24841fe2de7304c149343d877d2923b4c8800a38ba015dea9174c23b20e344a0",
 		},
 		"dns_provider_env": map[string]string{"EXEC_PATH": dnsProviderPath},
 		"mail": map[string]any{
@@ -72,6 +72,10 @@ func TestMail(t *testing.T) {
 			"acme_ca_server":      "https://pebble-strict:14000/dir",
 			"acme_ca_certificate": string(strictCA),
 			"mta_sts_mode":        "enforce",
+			"stalwart": map[string]string{
+				"image": "mirror.gcr.io/stalwartlabs/stalwart:v0.16.23@sha256:be215678796691bc39bdda918ecc50d14a9032a099a1d1950e51950aec7e2592",
+				"cli":   "1.0.12",
+			},
 		},
 	}
 	encoded, err := json.Marshal(vars)

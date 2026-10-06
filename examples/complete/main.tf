@@ -27,6 +27,7 @@ variable "traefik" {
     internal              = optional(object({ host_network = optional(string, "default"), port = optional(number, 443) }), {})
     public                = optional(object({ host_network = optional(string, "public"), http_port = optional(number, 80), https_port = optional(number, 443) }), {})
     consul                = optional(object({ address = optional(string, "127.0.0.1:8501"), scheme = optional(string, "https"), ca_pem = optional(string) }), {})
+    image                 = optional(string)
   })
 }
 
@@ -47,20 +48,19 @@ variable "mail" {
     acme_ca_server      = optional(string, "https://acme-v02.api.letsencrypt.org/directory")
     acme_ca_certificate = optional(string)
     mta_sts_mode        = optional(string, "testing")
+    stalwart            = optional(object({ image = string, cli = string }))
   })
 }
 
 module "workload_identity" {
-  source  = "eugene-panin/hashistack/nomad//modules/workload-identity"
-  version = "~> 0.5"
+  source = "git::https://github.com/eugene-panin/terraform-nomad-hashistack.git//modules/workload-identity?ref=v0.9.0"
 
   nomad_jwks_url = var.nomad_jwks_url
   vault_kv_path  = var.vault_kv_path
 }
 
 module "traefik" {
-  source  = "eugene-panin/hashistack/nomad//modules/traefik"
-  version = "~> 0.5"
+  source = "git::https://github.com/eugene-panin/terraform-nomad-hashistack.git//modules/traefik?ref=v0.9.0"
 
   domain                = var.traefik.domain
   acme_email            = var.traefik.acme_email
@@ -72,6 +72,7 @@ module "traefik" {
   internal              = var.traefik.internal
   public                = merge(var.traefik.public, { enabled = true })
   consul                = var.traefik.consul
+  image                 = var.traefik.image
   vault_kv_path         = module.workload_identity.vault_kv_path
 }
 
@@ -85,6 +86,7 @@ module "mail" {
   acme_ca_server      = var.mail.acme_ca_server
   acme_ca_certificate = var.mail.acme_ca_certificate
   mta_sts_mode        = var.mail.mta_sts_mode
+  stalwart            = var.mail.stalwart
   vault_kv_path       = module.workload_identity.vault_kv_path
 }
 

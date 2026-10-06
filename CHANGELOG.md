@@ -5,6 +5,12 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- The Terratest run works again: Nomad runs in a container with a Docker
+  daemon, the CNI plugins and a DNS forwarder, for the `docker` driver and the
+  `bridge` network of the job. `stalwart` no longer takes null.
+
 ## [0.3.1] - 2026-10-06
 
 ### Fixed

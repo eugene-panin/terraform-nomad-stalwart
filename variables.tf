@@ -129,6 +129,7 @@ variable "stalwart" {
     image = string
     cli   = string
   })
+  nullable = false
   default = {
     image = "stalwartlabs/stalwart:v0.16.23@sha256:be215678796691bc39bdda918ecc50d14a9032a099a1d1950e51950aec7e2592"
     cli   = "1.0.12"

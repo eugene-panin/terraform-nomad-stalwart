@@ -65,17 +65,17 @@ services:
       - 127.0.0.1:15001:15000
 
   nomad:
-    image: mirror.gcr.io/hashicorp/nomad:2.0.7
+    build: ./nomad
     command:
       - agent
       - -dev
       - -bind=0.0.0.0
       - -config=/etc/nomad.d/nomad.hcl
+    environment:
+      DOCKER_TLS_CERTDIR: ""
     volumes:
       - ./nomad.hcl:/etc/nomad.d/nomad.hcl:ro
-      - /sys/fs/cgroup:/sys/fs/cgroup:rw
       - ca-certificates:/etc/ssl/certs:ro
-    cgroup: host
     privileged: true
     sysctls:
       net.ipv4.ip_unprivileged_port_start: "1024"
