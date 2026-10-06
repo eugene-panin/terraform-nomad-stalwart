@@ -10,31 +10,34 @@ job "${job_name}" {
 
   group "mail" {
     network {
+      mode = "bridge"
+
       port "smtp" {
         static       = 25
+        to           = 25
         host_network = "${public_host_network}"
       }
 
       port "submissions" {
         static       = 465
+        to           = 465
         host_network = "${public_host_network}"
       }
 
       port "submission" {
         static       = 587
+        to           = 587
         host_network = "${public_host_network}"
       }
 
       port "imaps" {
         static       = 993
+        to           = 993
         host_network = "${public_host_network}"
       }
 
       port "https" {
-        host_network = "${internal_network}"
-      }
-
-      port "recovery" {
+        to           = 8443
         host_network = "${internal_network}"
       }
     }
@@ -66,22 +69,12 @@ job "${job_name}" {
     }
 
     task "setup" {
-      driver = "exec"
-      user   = "nobody"
+      driver = "docker"
+      user   = "65534:65534"
 
       lifecycle {
         hook    = "prestart"
         sidecar = false
-      }
-
-      artifact {
-        source      = "https://github.com/stalwartlabs/stalwart/releases/download/v${stalwart.version}/stalwart-$${attr.kernel.arch}-unknown-linux-musl.tar.gz"
-        destination = "local/stalwart.tar.gz"
-        mode        = "file"
-
-        options {
-          archive = "false"
-        }
       }
 
       artifact {
@@ -94,8 +87,21 @@ job "${job_name}" {
       }
 
       config {
-        command = "/bin/sh"
-        args    = ["/local/setup.sh"]
+        image           = "${stalwart.image}"
+        entrypoint      = ["/bin/sh"]
+        args            = ["/local/setup.sh"]
+        readonly_rootfs = true
+        cap_drop        = ["all"]
+        cap_add         = ["net_bind_service"]
+
+        mount {
+          type   = "tmpfs"
+          target = "/tmp"
+
+          tmpfs_options {
+            size = 268435456
+          }
+        }
       }
 
       volume_mount {
@@ -106,6 +112,7 @@ job "${job_name}" {
       vault {}
 
       env {
+        HOME   = "/local"
         TMPDIR = "/local"
 %{ if acme_ca_certificate != null ~}
         SSL_CERT_FILE = "/alloc/ca.pem"
@@ -123,17 +130,6 @@ ${acme_ca_certificate}
       }
 
 %{ endif ~}
-      template {
-        destination     = "local/stalwart.sha256"
-        left_delimiter  = "[["
-        right_delimiter = "]]"
-        data            = <<-EOT
-%{ for arch, sum in stalwart.sha256 ~}
-          ${sum}  stalwart-${arch}-unknown-linux-musl.tar.gz
-%{ endfor ~}
-        EOT
-      }
-
       template {
         destination     = "local/config.json"
         left_delimiter  = "[["
@@ -156,7 +152,7 @@ ${acme_ca_certificate}
         destination = "secrets/plan.ndjson"
         data        = <<-EOT
           {{ with secret "${secret_path}" }}{{ .Data.data.plan }}{{ end }}
-          {"@type":"upsert","object":"NetworkListener","matchOn":["name"],"value":{"smtp":{"name":"smtp","protocol":"smtp","bind":{"{{ env "NOMAD_ADDR_smtp" }}":true}},"submissions":{"name":"submissions","protocol":"smtp","bind":{"{{ env "NOMAD_ADDR_submissions" }}":true},"useTls":true,"tlsImplicit":true},"submission":{"name":"submission","protocol":"smtp","bind":{"{{ env "NOMAD_ADDR_submission" }}":true}},"imaps":{"name":"imaps","protocol":"imap","bind":{"{{ env "NOMAD_ADDR_imaps" }}":true},"useTls":true,"tlsImplicit":true},"https":{"name":"https","protocol":"http","bind":{"{{ env "NOMAD_ADDR_https" }}":true},"useTls":true,"tlsImplicit":true,"overrideProxyTrustedNetworks":{"{{ env "NOMAD_IP_https" }}/32":true}}}}
+          {"@type":"upsert","object":"NetworkListener","matchOn":["name"],"value":{"smtp":{"name":"smtp","protocol":"smtp","bind":{"0.0.0.0:25":true}},"submissions":{"name":"submissions","protocol":"smtp","bind":{"0.0.0.0:465":true},"useTls":true,"tlsImplicit":true},"submission":{"name":"submission","protocol":"smtp","bind":{"0.0.0.0:587":true}},"imaps":{"name":"imaps","protocol":"imap","bind":{"0.0.0.0:993":true},"useTls":true,"tlsImplicit":true},"https":{"name":"https","protocol":"http","bind":{"0.0.0.0:8443":true},"useTls":true,"tlsImplicit":true,"overrideProxyTrustedNetworks":{"{{ env "NOMAD_HOST_IP_https" }}/32":true}}}}
         EOT
       }
 
@@ -167,25 +163,19 @@ ${acme_ca_certificate}
         data            = <<-EOT
           set -eu
           arch=$(uname -m)
-          expected=$(awk -v f="stalwart-$arch-unknown-linux-musl.tar.gz" '$2 == f { print $1 }' /local/stalwart.sha256)
-          [ -n "$expected" ] || { echo "no checksum for $arch" >&2; exit 1; }
-          echo "$expected  /local/stalwart.tar.gz" | sha256sum -c -
-          mkdir -p /alloc/bin
-          tar -xzf /local/stalwart.tar.gz -C /alloc/bin stalwart
-          chmod 0755 /alloc/bin/stalwart
 %{ if acme_ca_certificate != null ~}
           cat /etc/ssl/certs/ca-certificates.crt /local/acme-ca.pem > /alloc/ca.pem
 %{ endif ~}
-          STALWART_RECOVERY_MODE=1 STALWART_RECOVERY_MODE_PORT="$NOMAD_PORT_recovery" /alloc/bin/stalwart --config /local/config.json &
+          STALWART_RECOVERY_MODE=1 STALWART_RECOVERY_MODE_PORT=8081 /usr/local/bin/stalwart --config /local/config.json &
           server=$!
           trap 'kill "$server" 2>/dev/null || true' EXIT
-          export STALWART_URL="http://127.0.0.1:$NOMAD_PORT_recovery" STALWART_USER=admin
+          export STALWART_URL="http://127.0.0.1:8081" STALWART_USER=admin
           cli="/local/cli/stalwart-cli-$arch-unknown-linux-musl/stalwart-cli"
           tries=0
-          until "$cli" describe >/dev/null 2>&1; do
+          until "$cli" describe >/local/describe.log 2>&1; do
             kill -0 "$server"
             tries=$((tries + 1))
-            [ "$tries" -lt 60 ] || { echo "the recovery server did not answer" >&2; exit 1; }
+            [ "$tries" -lt 60 ] || { cat /local/describe.log >&2; echo "the recovery server did not answer" >&2; exit 1; }
             sleep 1
           done
           "$cli" --no-color apply --file /secrets/plan.ndjson
@@ -201,14 +191,24 @@ ${acme_ca_certificate}
     }
 
     task "stalwart" {
-      driver = "exec"
-      user   = "nobody"
+      driver = "docker"
+      user   = "65534:65534"
 
       config {
-        command  = "/alloc/bin/stalwart"
-        args     = ["--config", "/local/config.json"]
-        cap_drop = ["all"]
-        cap_add  = ["net_bind_service"]
+        image           = "${stalwart.image}"
+        args            = ["--config", "/local/config.json"]
+        readonly_rootfs = true
+        cap_drop        = ["all"]
+        cap_add         = ["net_bind_service"]
+
+        mount {
+          type   = "tmpfs"
+          target = "/tmp"
+
+          tmpfs_options {
+            size = 268435456
+          }
+        }
       }
 
       volume_mount {
@@ -217,6 +217,7 @@ ${acme_ca_certificate}
       }
 
       env {
+        HOME   = "/local"
         TMPDIR = "/local"
 %{ if acme_ca_certificate != null ~}
         SSL_CERT_FILE = "/alloc/ca.pem"

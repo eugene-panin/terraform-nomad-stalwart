@@ -5,6 +5,20 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-06
+
+### Changed
+
+- Stalwart runs on the `docker` driver with the official image, pinned by its
+  digest, instead of the release tarball on `exec`: after a reboot it starts
+  from the image on the host, in seconds, with nothing to download. It runs
+  as `nobody` with a read-only root and every capability dropped but
+  `net_bind_service`.
+- The job has a network of its own (`bridge`); the mail ports map to the same
+  ports inside, keeping the address of every sender.
+- **Breaking:** `stalwart` is `{image, cli}`: the image by its digest, and the
+  release of stalwart-cli. `version` and `sha256` are gone.
+
 ## [0.2.0] - 2026-10-04
 
 ### Added

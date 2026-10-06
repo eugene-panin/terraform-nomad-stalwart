@@ -124,19 +124,19 @@ variable "mta_sts_mode" {
 }
 
 variable "stalwart" {
-  description = "Stalwart release and the SHA-256 of its musl tarball per machine architecture, as uname -m prints it. The release publishes no checksums file."
+  description = "The image of Stalwart, pinned by the digest of its index for every architecture so that no retagging changes it, and the release of stalwart-cli the setup task applies the configuration with."
   type = object({
-    version = string
-    sha256  = map(string)
-    cli     = string
+    image = string
+    cli   = string
   })
   default = {
-    version = "0.16.23"
-    sha256 = {
-      x86_64  = "c5b78035eb354a1c12b42f1664eaf57b58a5a8dfb3b7ad926ef329f87d7863c2"
-      aarch64 = "8629b7d2a05e83d48e51dfada4318992e296c7583f11be6c080498e5d11d440a"
-    }
-    cli = "1.0.12"
+    image = "stalwartlabs/stalwart:v0.16.23@sha256:be215678796691bc39bdda918ecc50d14a9032a099a1d1950e51950aec7e2592"
+    cli   = "1.0.12"
+  }
+
+  validation {
+    condition     = can(regex("@sha256:[0-9a-f]{64}$", var.stalwart.image))
+    error_message = "stalwart.image must be pinned by its digest: name:tag@sha256:<64 hex digits>."
   }
 }
 

@@ -9,7 +9,7 @@ also receives `postmaster@` and `abuse@`.
 ```hcl
 module "mail" {
   source  = "eugene-panin/stalwart/nomad"
-  version = "~> 0.1"
+  version = "~> 0.3"
 
   hostname   = "mail.example.com"
   domains    = ["example.com", "example.org"]
@@ -55,14 +55,20 @@ there on every start, so the running server always matches the module inputs.
   account and the certificates. The job carries the meta `backup = "stop"`:
   RocksDB cannot be copied while Stalwart runs, so a backup of the platform
   stops the job, copies the volume and starts it again.
-- The job. A prestart task checks the Stalwart release against the SHA-256 in
-  `stalwart`, starts it in recovery mode on a dynamic port, applies the
-  plan with `stalwart-cli apply`, and stops it. Then Stalwart runs with the
-  `exec` driver as `nobody`, with every capability dropped except
-  `net_bind_service`.
+- The job, on the `docker` driver with the official image, pinned by its
+  digest in `stalwart`. A prestart task starts Stalwart in recovery mode,
+  applies the plan with `stalwart-cli apply`, and stops it. Then Stalwart
+  runs as `nobody`, with a read-only root, a tmpfs on `/tmp` for the web
+  interface it unpacks, and every capability dropped except
+  `net_bind_service`, which the binary of the image carries as a file
+  capability and needs to start at all. A restart, after a reboot too,
+  starts from the image on the host, with nothing to download.
 
-Ports 25, 465, 587 and 993 bind on the public host network, so the spam
-checks see the real address of every sender. HTTPS binds on the internal
+The job has a network of its own (`bridge`): it reaches nothing on the host
+but the ports Nomad maps into it. Ports 25, 465, 587 and 993 of the public
+host network map to the same ports inside, since the defaults of Stalwart
+tell submission from delivery by the port number; the mapping keeps the
+address of every sender, which the spam checks need. HTTPS binds on the internal
 network: Traefik passes TLS through by SNI for `hostname` and for
 `mta-sts.`, `autoconfig.` and `autodiscover.` of each domain, with the PROXY
 protocol header. Stalwart obtains the certificates itself through TLS-ALPN-01
@@ -152,7 +158,7 @@ store on the volume, a correct checksum, and the MTA-STS settings.
 | mta\_sts\_mode | MTA-STS mode served for every domain. | `string` | `"testing"` | no |
 | namespace | Nomad namespace of the job; also the first segment of its secret path in Vault. | `string` | `"default"` | no |
 | public\_host\_network | Nomad host network the SMTP, submission and IMAP ports bind to, on their standard numbers. | `string` | `"public"` | no |
-| stalwart | Stalwart release and the SHA-256 of its musl tarball per machine architecture, as uname -m prints it. The release publishes no checksums file. | <pre>object({<br/>    version = string<br/>    sha256  = map(string)<br/>    cli     = string<br/>  })</pre> | <pre>{<br/>  "cli": "1.0.12",<br/>  "sha256": {<br/>    "aarch64": "8629b7d2a05e83d48e51dfada4318992e296c7583f11be6c080498e5d11d440a",<br/>    "x86_64": "c5b78035eb354a1c12b42f1664eaf57b58a5a8dfb3b7ad926ef329f87d7863c2"<br/>  },<br/>  "version": "0.16.23"<br/>}</pre> | no |
+| stalwart | The image of Stalwart, pinned by the digest of its index for every architecture so that no retagging changes it, and the release of stalwart-cli the setup task applies the configuration with. | <pre>object({<br/>    image = string<br/>    cli   = string<br/>  })</pre> | <pre>{<br/>  "cli": "1.0.12",<br/>  "image": "stalwartlabs/stalwart:v0.16.23@sha256:be215678796691bc39bdda918ecc50d14a9032a099a1d1950e51950aec7e2592"<br/>}</pre> | no |
 | traefik | Traefik entrypoint that passes TLS for the mail host names through to Stalwart, and the TCP servers transport that sends the PROXY protocol header. | <pre>object({<br/>    entrypoint        = optional(string, "public-https")<br/>    servers_transport = optional(string, "proxy-protocol@file")<br/>  })</pre> | `{}` | no |
 | vault\_kv\_path | Path of the KV version 2 engine the workload-identity module mounts. | `string` | `"secret"` | no |
 
