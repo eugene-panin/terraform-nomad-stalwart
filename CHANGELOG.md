@@ -5,6 +5,14 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-06
+
+### Fixed
+
+- Docker no longer runs the health check of the image, which probes ports
+  Stalwart does not listen on here and marked the container unhealthy. Nomad
+  checks the service itself.
+
 ## [0.3.0] - 2026-10-06
 
 ### Changed

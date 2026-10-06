@@ -94,6 +94,10 @@ job "${job_name}" {
         cap_drop        = ["all"]
         cap_add         = ["net_bind_service"]
 
+        healthchecks {
+          disable = true
+        }
+
         mount {
           type   = "tmpfs"
           target = "/tmp"
@@ -200,6 +204,10 @@ ${acme_ca_certificate}
         readonly_rootfs = true
         cap_drop        = ["all"]
         cap_add         = ["net_bind_service"]
+
+        healthchecks {
+          disable = true
+        }
 
         mount {
           type   = "tmpfs"
