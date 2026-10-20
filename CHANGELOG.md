@@ -5,6 +5,14 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-21
+
+### Added
+
+- `permissive_cors`: Stalwart answers every origin with CORS headers, for a
+  webmail in the browser that calls JMAP on another host name. Off by default;
+  turning it on or off restarts Stalwart once.
+
 ### Fixed
 
 - The Terratest run works again: Nomad runs in a container with a Docker

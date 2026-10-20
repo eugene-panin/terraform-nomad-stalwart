@@ -105,3 +105,25 @@ run "the_job_asks_to_be_stopped_for_a_backup" {
     error_message = "The job does not carry the meta backup = \"stop\"."
   }
 }
+
+run "cors_is_off_unless_asked" {
+  command = apply
+
+  assert {
+    condition     = length([for op in local.plan : op if try(op.object, "") == "Http"]) == 0
+    error_message = "Stalwart must not answer with CORS headers unless permissive_cors is on."
+  }
+}
+
+run "permissive_cors_turns_it_on" {
+  command = apply
+
+  variables {
+    permissive_cors = true
+  }
+
+  assert {
+    condition     = [for op in local.plan : op.value if try(op.object, "") == "Http"] == [{ usePermissiveCors = true }]
+    error_message = "permissive_cors does not turn on Stalwart's permissive CORS."
+  }
+}

@@ -141,6 +141,13 @@ variable "stalwart" {
   }
 }
 
+variable "permissive_cors" {
+  description = "Answer every origin with CORS headers, for a webmail in the browser that calls JMAP on another host name. Turning it on or off restarts Stalwart once."
+  type        = bool
+  nullable    = false
+  default     = false
+}
+
 variable "vault_kv_path" {
   description = "Path of the KV version 2 engine the workload-identity module mounts."
   type        = string

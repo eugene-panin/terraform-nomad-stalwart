@@ -37,7 +37,7 @@ locals {
     }
   }
 
-  plan = [
+  plan = concat([
     {
       "@type" = "upsert"
       object  = "Tracer"
@@ -124,7 +124,13 @@ locals {
         mxHosts = { (var.hostname) = true }
       }
     },
-  ]
+    ], var.permissive_cors ? [
+    {
+      "@type" = "update"
+      object  = "Http"
+      value   = { usePermissiveCors = true }
+    },
+  ] : [])
 
   config = {
     plan              = join("\n", [for operation in local.plan : jsonencode(operation)])
